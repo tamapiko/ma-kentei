@@ -80,6 +80,7 @@
         let isDrawing = false;
         let startX, startY;
         let rects = [];
+        let answers = [];
 
         async function uploadAndRenderPDF() {
             const fileInput = document.getElementById('pdf-file');
@@ -128,45 +129,53 @@
         function startDrawing(event) {
             event.preventDefault();
             isDrawing = true;
-            const rect = event.target.getBoundingClientRect();
+
+            const canvas = event.target;
+            const rect = canvas.getBoundingClientRect();
             const clientX = event.clientX || event.touches[0].clientX;
             const clientY = event.clientY || event.touches[0].clientY;
+
             startX = clientX - rect.left;
             startY = clientY - rect.top;
+
+            // 新しい枠線を生成
+            const newRect = document.createElement('div');
+            newRect.classList.add('rect');
+            newRect.style.left = startX + 'px';
+            newRect.style.top = startY + 'px';
+            newRect.style.width = '0px';
+            newRect.style.height = '0px';
+            document.getElementById('pdf-container').appendChild(newRect);
+
+            // 現在の矩形を保存しておく
+            rects.push(newRect);
         }
 
         function drawRect(event) {
             if (!isDrawing) return;
 
             event.preventDefault();
+
             const rect = event.target.getBoundingClientRect();
             const clientX = event.clientX || event.touches[0].clientX;
             const clientY = event.clientY || event.touches[0].clientY;
+
             const x = clientX - rect.left;
             const y = clientY - rect.top;
+
             const width = x - startX;
             const height = y - startY;
 
-            clearRects(); // 以前の矩形をクリア
-
-            const newRect = document.createElement('div');
-            newRect.classList.add('rect');
-            newRect.style.left = startX + 'px';
-            newRect.style.top = startY + 'px';
-            newRect.style.width = width + 'px';
-            newRect.style.height = height + 'px';
-            document.getElementById('pdf-container').appendChild(newRect);
-
-            rects.push(newRect);
+            // 現在描画中の矩形を更新
+            const currentRect = rects[rects.length - 1];
+            currentRect.style.width = Math.abs(width) + 'px';
+            currentRect.style.height = Math.abs(height) + 'px';
+            currentRect.style.left = (width < 0 ? x : startX) + 'px';
+            currentRect.style.top = (height < 0 ? y : startY) + 'px';
         }
 
         function endDrawing() {
             isDrawing = false;
-        }
-
-        function clearRects() {
-            rects.forEach(rect => rect.remove());
-            rects = [];
         }
 
         async function uploadAndExtractAnswers() {
@@ -221,7 +230,20 @@
         }
 
         async function startScoring() {
-            // 抽出したテキストを基に採点処理を行う関数を追加
+            if (!pdfDoc || rects.length === 0) {
+                alert('採点するPDFまたは解答欄の枠を指定してください。');
+                return;
+            }
+
+            for (const rect of rects) {
+                const x = parseInt(rect.style.left, 10);
+                const y = parseInt(rect.style.top, 10);
+                const width = parseInt(rect.style.width, 10);
+                const height = parseInt(rect.style.height, 10);
+
+                // 解答欄内のテキストを抽出するコードを追加
+                // テキスト検出と答えの比較処理
+            }
         }
 
         function generateScoredPDF() {
