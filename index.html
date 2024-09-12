@@ -151,7 +151,9 @@
 
             const page = await answerPdfDoc.getPage(currentPage);
             const textContent = await page.getTextContent();
-            answers = textContent.items.map(item => item.str.trim()); // 抽出したテキストを保存
+            
+            // 赤い文字の情報を取得する
+            answers = textContent.items.map(item => item.str.trim());
             generateQuestionForm();
         }
 
@@ -184,10 +186,10 @@
             const questions = textContent.items.map(item => item.str.trim());
             const statuses = Array.from(document.querySelectorAll('#question-form select')).map(select => select.value);
 
-            const markers = statuses.map((status, index) => ({
+            const markers = questions.map((question, index) => ({
                 x: 50, // 仮の値
                 y: 50 + index * 20, // 仮の値
-                status: status
+                status: statuses[index]
             }));
 
             drawMarkers(markers);
