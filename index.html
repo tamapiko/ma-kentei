@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自動採点システム</title>
+    <style>
+        body {
+            display: flex;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+        #upload-container {
+            width: 200px;
+            padding: 20px;
+            border-right: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+        #pdf-container {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+            border-right: 1px solid #ccc;
+        }
+        #edit-container {
+            width: 300px;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        #upload-form {
+            margin-bottom: 20px;
+        }
+        #question-form fieldset {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+        #result {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="upload-container">
+        <h2>アップロード</h2>
+        <form id="upload-form">
+            <input type="file" id="pdf-file" name="pdf-file" accept=".pdf">
+            <button type="button" onclick="uploadAndGenerateForm()">アップロード</button>
+        </form>
+    </div>
+    <div id="pdf-container">
+        <h2>採点PDF</h2>
+        <canvas id="pdf-canvas"></canvas>
+    </div>
+    <div id="edit-container">
+        <h2>採点と編集</h2>
+        <div id="question-form"></div>
+        <button type="button" onclick="calculateScore()">採点する</button>
+        <button type="button" onclick="generateScoredPDF()">採点結果をPDFにする</button>
+        <div id="result"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.6.0/jspdf.umd.min.js"></script>
+    <script>
+        let pdfDoc = null;
+        let currentPage = 1;
+
+        async function uploadAndGenerateForm() {
+            const fileInput = document.getElementById('pdf-file');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('PDFファイルを選択してください。');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
+                loadingTask.promise.then(function(pdf) {
+                    pdfDoc = pdf;
+                    renderPage(currentPage);
+                }, function(reason) {
+                    console.error(reason);
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function renderPage(pageNum) {
+            if (!pdfDoc) return;
+
+            const page = await pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1 });
+            const canvas = document.getElementById('pdf-canvas');
+            const context = canvas.getContext('2d');
+
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+            await page.render(renderContext).promise;
+
+            // ページのテキストを抽出して質問を生成します
+            const textContent = await page.getTextContent();
+            const text = textContent.items.map(item => item.str).join(' ');
+            generateQuestionForm(text);
+        }
+
+        function generateQuestionForm(text) {
+            const formContainer = document.getElementById('question-form');
+            formContainer.innerHTML = ''; // 既存のフォームをクリア
+
+            // テキストから質問を抽出する処理をここに追加
+            const questions = text.split('\n').filter(line => line.startsWith('質問')).map((line, index) => `大門 ${index + 1}: ${line}`);
+            
+            questions.forEach((question, index) => {
+                const fieldset = document.createElement('fieldset');
+                fieldset.innerHTML = `
+                    <legend>${question}</legend>
+                    <label for="answer${index}">回答:</label>
+                    <input type="text" id="answer${index}" name="answer${index}">
+                    <label for="score${index}">点数:</label>
+                    <input type="number" id="score${index}" name="score${index}" value="0">
+                `;
+                formContainer.appendChild(fieldset);
+            });
+        }
+
+        function calculateScore() {
+            const formElements = document.querySelectorAll('#question-form input[type="text"], #question-form input[type="number"]');
+            let totalPoints = 0;
+            let totalPossiblePoints = 0;
+
+            formElements.forEach(element => {
+                if (element.type === 'number') {
+                    totalPossiblePoints += parseInt(element.value) || 0;
+                } else if (element.type === 'text') {
+                    const index = element.id.replace('answer', '');
+                    const scoreInput = document.getElementById(`score${index}`);
+                    // 正解の回答と比較する処理をここに追加
+                    if (element.value === "正解の回答") { // 例: 正解の回答
+                        totalPoints += parseInt(scoreInput.value) || 0;
+                    }
+                }
+            });
+
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `あなたのスコアは ${totalPoints} / ${totalPossiblePoints} です。`;
+        }
+
+        async function generateScoredPDF() {
+            const { jsPDF } = window.jspdf;
+            const pdf = new jsPDF();
+            const resultDiv = document.getElementById('result');
+
+            // HTML2Canvasで結果をキャプチャし、PDFに追加
+            await html2canvas(resultDiv).then(canvas => {
+                const imgData = canvas.toDataURL('image/png');
+                pdf.addImage(imgData, 'PNG', 10, 10);
+                pdf.save('scored-result.pdf');
+            });
+        }
+    </script>
+</body>
+</html>
