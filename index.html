@@ -7,11 +7,19 @@
     <style>
         body {
             display: flex;
+            flex-direction: column;
             margin: 0;
             font-family: Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
         }
         #upload-container {
-            width: 200px;
+            width: 250px;
             padding: 20px;
             border-right: 1px solid #ccc;
             box-sizing: border-box;
@@ -20,7 +28,7 @@
             flex: 1;
             padding: 20px;
             overflow: auto;
-            border-right: 1px solid #ccc;
+            position: relative;
         }
         #edit-container {
             width: 300px;
@@ -40,26 +48,39 @@
         #result {
             margin-top: 20px;
         }
+        .marker {
+            position: absolute;
+            background: rgba(255, 0, 0, 0.3);
+            border: 1px solid red;
+        }
+        .correct {
+            border-color: green;
+        }
+        .incorrect {
+            border-color: red;
+        }
     </style>
 </head>
 <body>
-    <div id="upload-container">
-        <h2>アップロード</h2>
-        <form id="upload-form">
-            <input type="file" id="pdf-file" name="pdf-file" accept=".pdf">
-            <button type="button" onclick="uploadAndGenerateForm()">アップロード</button>
-        </form>
-    </div>
-    <div id="pdf-container">
-        <h2>採点PDF</h2>
-        <canvas id="pdf-canvas"></canvas>
-    </div>
-    <div id="edit-container">
-        <h2>採点と編集</h2>
-        <div id="question-form"></div>
-        <button type="button" onclick="calculateScore()">採点する</button>
-        <button type="button" onclick="generateScoredPDF()">採点結果をPDFにする</button>
-        <div id="result"></div>
+    <div id="container">
+        <div id="upload-container">
+            <h2>アップロード</h2>
+            <form id="upload-form">
+                <input type="file" id="pdf-file" name="pdf-file" accept=".pdf">
+                <button type="button" onclick="uploadAndGenerateForm()">アップロード</button>
+            </form>
+        </div>
+        <div id="pdf-container">
+            <h2>採点PDF</h2>
+            <canvas id="pdf-canvas"></canvas>
+        </div>
+        <div id="edit-container">
+            <h2>採点と編集</h2>
+            <div id="question-form"></div>
+            <button type="button" onclick="calculateScore()">採点する</button>
+            <button type="button" onclick="generateScoredPDF()">採点結果をPDFにする</button>
+            <div id="result"></div>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
@@ -78,14 +99,10 @@
             }
 
             const reader = new FileReader();
-            reader.onload = function(event) {
+            reader.onload = async function(event) {
                 const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
-                loadingTask.promise.then(function(pdf) {
-                    pdfDoc = pdf;
-                    renderPage(currentPage);
-                }, function(reason) {
-                    console.error(reason);
-                });
+                pdfDoc = await loadingTask.promise;
+                renderPage(currentPage);
             };
             reader.readAsArrayBuffer(file);
         }
@@ -128,13 +145,18 @@
                     <input type="text" id="answer${index}" name="answer${index}">
                     <label for="score${index}">点数:</label>
                     <input type="number" id="score${index}" name="score${index}" value="0">
+                    <label for="status${index}">状態:</label>
+                    <select id="status${index}">
+                        <option value="correct">正解</option>
+                        <option value="incorrect">不正解</option>
+                    </select>
                 `;
                 formContainer.appendChild(fieldset);
             });
         }
 
         function calculateScore() {
-            const formElements = document.querySelectorAll('#question-form input[type="text"], #question-form input[type="number"]');
+            const formElements = document.querySelectorAll('#question-form input[type="text"], #question-form input[type="number"], #question-form select');
             let totalPoints = 0;
             let totalPossiblePoints = 0;
 
@@ -144,6 +166,15 @@
                 } else if (element.type === 'text') {
                     const index = element.id.replace('answer', '');
                     const scoreInput = document.getElementById(`score${index}`);
+                    const status = document.getElementById(`status${index}`).value;
+                    const marker = document.createElement('div');
+                    marker.className = `marker ${status}`;
+                    marker.style.left = '10px'; // Adjust position as needed
+                    marker.style.top = '50px';  // Adjust position as needed
+                    marker.style.width = '20px'; // Adjust size as needed
+                    marker.style.height = '20px'; // Adjust size as needed
+                    document.getElementById('pdf-container').appendChild(marker);
+
                     // 正解の回答と比較する処理をここに追加
                     if (element.value === "正解の回答") { // 例: 正解の回答
                         totalPoints += parseInt(scoreInput.value) || 0;
@@ -158,10 +189,9 @@
         async function generateScoredPDF() {
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF();
-            const resultDiv = document.getElementById('result');
 
             // HTML2Canvasで結果をキャプチャし、PDFに追加
-            await html2canvas(resultDiv).then(canvas => {
+            await html2canvas(document.querySelector('#pdf-container')).then(canvas => {
                 const imgData = canvas.toDataURL('image/png');
                 pdf.addImage(imgData, 'PNG', 10, 10);
                 pdf.save('scored-result.pdf');
