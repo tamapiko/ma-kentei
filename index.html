@@ -57,6 +57,11 @@
         input[type="text"] {
             width: 100%;
         }
+        .rect {
+            border: 2px solid red;
+            position: absolute;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -92,6 +97,9 @@
         let currentPage = 1;
         let answers = [];
         let answerPositions = [];
+        let isDrawing = false;
+        let startX, startY;
+        let rects = [];
 
         async function uploadAndRenderPDF() {
             const fileInput = document.getElementById('pdf-file');
@@ -106,23 +114,6 @@
                 const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
                 pdfDoc = await loadingTask.promise;
                 renderPage(currentPage);
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        async function uploadAndExtractAnswers() {
-            const fileInput = document.getElementById('answer-file');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('答えのPDFファイルを選択してください。');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
-                answerPdfDoc = await loadingTask.promise;
-                extractAnswers();
             };
             reader.readAsArrayBuffer(file);
         }
@@ -143,6 +134,68 @@
                 viewport: viewport
             };
             await page.render(renderContext).promise;
+
+            // クリックイベントで矩形を描画
+            canvas.addEventListener('mousedown', startDrawing);
+            canvas.addEventListener('mousemove', drawRect);
+            canvas.addEventListener('mouseup', endDrawing);
+        }
+
+        function startDrawing(event) {
+            isDrawing = true;
+            const rect = event.target.getBoundingClientRect();
+            startX = event.clientX - rect.left;
+            startY = event.clientY - rect.top;
+        }
+
+        function drawRect(event) {
+            if (!isDrawing) return;
+            const rect = event.target.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const width = x - startX;
+            const height = y - startY;
+
+            clearRects(); // 以前の矩形をクリア
+            const newRect = document.createElement('div');
+            newRect.classList.add('rect');
+            newRect.style.left = startX + 'px';
+            newRect.style.top = startY + 'px';
+            newRect.style.width = width + 'px';
+            newRect.style.height = height + 'px';
+            document.getElementById('pdf-container').appendChild(newRect);
+
+            rects.push(newRect);
+        }
+
+        function endDrawing() {
+            isDrawing = false;
+        }
+
+        function clearRects() {
+            rects.forEach(rect => rect.remove());
+            rects = [];
+        }
+
+        function extractTextFromRects() {
+            // 各矩形の座標からテキストを抽出する処理を追加
+        }
+
+        async function uploadAndExtractAnswers() {
+            const fileInput = document.getElementById('answer-file');
+            const file = fileInput.files[0];
+            if (!file) {
+                alert('答えのPDFファイルを選択してください。');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = async function(event) {
+                const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
+                answerPdfDoc = await loadingTask.promise;
+                extractAnswers();
+            };
+            reader.readAsArrayBuffer(file);
         }
 
         async function extractAnswers() {
@@ -151,13 +204,12 @@
             const page = await answerPdfDoc.getPage(currentPage);
             const textContent = await page.getTextContent();
             
-            // 赤い文字を検出
             const redTexts = textContent.items.filter(item => item.color && item.color.r === 1 && item.color.g === 0 && item.color.b === 0);
             
             answers = redTexts.map(item => ({
                 text: item.str.trim(),
-                x: item.transform[4], // テキストのx座標
-                y: item.transform[5]  // テキストのy座標
+                x: item.transform[4],
+                y: item.transform[5]
             }));
 
             displayAnswersForm();
@@ -165,7 +217,7 @@
 
         function displayAnswersForm() {
             const formContainer = document.getElementById('form-container');
-            formContainer.innerHTML = ''; // 既存のフォームをクリア
+            formContainer.innerHTML = '';
 
             answers.forEach((answer, index) => {
                 const fieldset = document.createElement('fieldset');
@@ -179,11 +231,11 @@
         }
 
         async function startScoring() {
-            // ここに採点ロジックを追加
+            extractTextFromRects();
         }
 
         function generateScoredPDF() {
-            // ここに採点結果をPDFに生成するロジックを追加
+            // 採点結果をPDFに生成するロジックを追加
         }
     </script>
 </body>
