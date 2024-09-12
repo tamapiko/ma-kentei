@@ -67,7 +67,7 @@
             <h2>アップロード</h2>
             <form id="upload-form">
                 <input type="file" id="pdf-file" name="pdf-file" accept=".pdf">
-                <button type="button" onclick="uploadAndRenderPDF()">PDF表示</button>
+                <button type="button" onclick="uploadAndRenderPDF()">採点PDF表示</button>
                 <input type="file" id="answer-file" name="answer-file" accept=".pdf">
                 <button type="button" onclick="uploadAndCompareAnswers()">答えを比較</button>
             </form>
@@ -155,7 +155,7 @@
             const answerTextContent = await answerPage.getTextContent();
 
             const questions = textContent.items.map(item => item.str);
-            const answers = answerTextContent.items.map(item => item.str);
+            const answers = answerTextContent.items.filter(item => item.hasOwnProperty('fontName') && item.fontName.includes('red')).map(item => item.str);
 
             generateQuestionForm(questions, answers);
         }
