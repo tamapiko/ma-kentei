@@ -9,10 +9,12 @@ import matplotlib.pyplot as plt
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
 RESULT_FOLDER = 'results'
+ANSWER_KEY_FOLDER = 'answer_keys'
 
-# フォルダの作成
+# 必要なフォルダの作成
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(RESULT_FOLDER, exist_ok=True)
+os.makedirs(ANSWER_KEY_FOLDER, exist_ok=True)
 
 # Tesseractのインストールパスを指定（必要に応じて変更）
 pytesseract.pytesseract.tesseract_cmd = r'/usr/local/bin/tesseract'
@@ -46,14 +48,21 @@ def create_scoring_pdf(score, total, output_path):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        if 'files' not in request.files:
+        # アップロードされたファイルがない場合はリダイレクト
+        if 'files' not in request.files or 'answer_file' not in request.files:
             return redirect(request.url)
-        
+
+        # 解答ファイルと正解ファイルを取得
         files = request.files.getlist('files')
-        
-        # 解答データの設定（例）
-        correct_answers = ["解答1", "解答2", "解答3"]  # 必要に応じて修正
-        
+        answer_file = request.files['answer_file']
+
+        # 正解ファイルの保存と読み込み
+        answer_key_path = os.path.join(ANSWER_KEY_FOLDER, answer_file.filename)
+        answer_file.save(answer_key_path)
+
+        with open(answer_key_path, 'r', encoding='utf-8') as f:
+            correct_answers = f.read().splitlines()
+
         total_score = 0
         total_questions = 0
         
