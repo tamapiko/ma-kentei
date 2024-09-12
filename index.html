@@ -48,16 +48,14 @@
         #result {
             margin-top: 20px;
         }
-        .marker {
-            position: absolute;
-            background: rgba(255, 0, 0, 0.3);
-            border: 1px solid red;
+        .highlighted {
+            background-color: yellow;
         }
-        .correct {
-            border-color: green;
+        #form-container {
+            margin-top: 20px;
         }
-        .incorrect {
-            border-color: red;
+        input[type="text"] {
+            width: 100%;
         }
     </style>
 </head>
@@ -79,7 +77,7 @@
         </div>
         <div id="edit-container">
             <h2>採点結果</h2>
-            <div id="question-form"></div>
+            <div id="form-container"></div>
             <button type="button" onclick="generateScoredPDF()">採点結果をPDFにする</button>
             <div id="result"></div>
         </div>
@@ -93,6 +91,7 @@
         let answerPdfDoc = null;
         let currentPage = 1;
         let answers = [];
+        let answerPositions = [];
 
         async function uploadAndRenderPDF() {
             const fileInput = document.getElementById('pdf-file');
@@ -152,69 +151,39 @@
             const page = await answerPdfDoc.getPage(currentPage);
             const textContent = await page.getTextContent();
             
-            // 赤い文字の情報を取得する
-            answers = textContent.items.map(item => item.str.trim());
-            generateQuestionForm();
+            // 赤い文字を検出
+            const redTexts = textContent.items.filter(item => item.color && item.color.r === 1 && item.color.g === 0 && item.color.b === 0);
+            
+            answers = redTexts.map(item => ({
+                text: item.str.trim(),
+                x: item.transform[4], // テキストのx座標
+                y: item.transform[5]  // テキストのy座標
+            }));
+
+            displayAnswersForm();
         }
 
-        function generateQuestionForm() {
-            const formContainer = document.getElementById('question-form');
+        function displayAnswersForm() {
+            const formContainer = document.getElementById('form-container');
             formContainer.innerHTML = ''; // 既存のフォームをクリア
 
             answers.forEach((answer, index) => {
                 const fieldset = document.createElement('fieldset');
                 fieldset.innerHTML = `
-                    <legend>問題 ${index + 1}</legend>
+                    <legend>解答 ${index + 1}</legend>
                     <label for="answer${index}">答え:</label>
-                    <input type="text" id="answer${index}" name="answer${index}" value="${answer}">
-                    <label for="status${index}">状態:</label>
-                    <select id="status${index}">
-                        <option value="correct">正解</option>
-                        <option value="incorrect">不正解</option>
-                    </select>
+                    <input type="text" id="answer${index}" name="answer${index}" value="${answer.text}">
                 `;
                 formContainer.appendChild(fieldset);
             });
         }
 
         async function startScoring() {
-            if (!pdfDoc || answers.length === 0) return;
-
-            const page = await pdfDoc.getPage(currentPage);
-            const textContent = await page.getTextContent();
-
-            const questions = textContent.items.map(item => item.str.trim());
-            const statuses = Array.from(document.querySelectorAll('#question-form select')).map(select => select.value);
-
-            const markers = questions.map((question, index) => ({
-                x: 50, // 仮の値
-                y: 50 + index * 20, // 仮の値
-                status: statuses[index]
-            }));
-
-            drawMarkers(markers);
+            // ここに採点ロジックを追加
         }
 
-        function drawMarkers(markers) {
-            const canvas = document.getElementById('pdf-canvas');
-            const context = canvas.getContext('2d');
-            markers.forEach(marker => {
-                context.beginPath();
-                context.arc(marker.x, marker.y, 10, 0, 2 * Math.PI);
-                context.fillStyle = marker.status === 'correct' ? 'green' : 'red';
-                context.fill();
-            });
-        }
-
-        async function generateScoredPDF() {
-            const { jsPDF } = window.jspdf;
-            const pdf = new jsPDF();
-
-            await html2canvas(document.querySelector('#pdf-container')).then(canvas => {
-                const imgData = canvas.toDataURL('image/png');
-                pdf.addImage(imgData, 'PNG', 10, 10);
-                pdf.save('scored-result.pdf');
-            });
+        function generateScoredPDF() {
+            // ここに採点結果をPDFに生成するロジックを追加
         }
     </script>
 </body>
