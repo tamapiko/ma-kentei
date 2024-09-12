@@ -11,11 +11,11 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            overflow: hidden;
         }
         #container {
             display: flex;
             flex: 1;
-            overflow: hidden;
         }
         #upload-container {
             width: 250px;
@@ -26,8 +26,8 @@
         #pdf-container {
             flex: 1;
             padding: 20px;
-            overflow: auto;
             position: relative;
+            overflow: auto;
         }
         #edit-container {
             width: 300px;
@@ -35,27 +35,11 @@
             box-sizing: border-box;
             border-left: 1px solid #ccc;
         }
-        #upload-form {
-            margin-bottom: 20px;
-        }
-        #question-form fieldset {
-            margin-bottom: 15px;
-        }
-        label {
-            display: block;
-            margin: 5px 0;
-        }
-        #result {
-            margin-top: 20px;
-        }
-        .highlighted {
-            background-color: yellow;
-        }
-        #form-container {
-            margin-top: 20px;
-        }
-        input[type="text"] {
+        #pdf-canvas {
             width: 100%;
+            height: auto;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
         }
         .rect {
             border: 2px solid red;
@@ -69,22 +53,20 @@
         <div id="upload-container">
             <h2>アップロード</h2>
             <form id="upload-form">
-                <input type="file" id="pdf-file" name="pdf-file" accept=".pdf">
+                <input type="file" id="pdf-file" accept=".pdf"><br><br>
+                <input type="file" id="answer-file" accept=".pdf"><br><br>
                 <button type="button" onclick="uploadAndRenderPDF()">採点PDF表示</button>
-                <input type="file" id="answer-file" name="answer-file" accept=".pdf">
                 <button type="button" onclick="uploadAndExtractAnswers()">答えを抽出</button>
                 <button type="button" onclick="startScoring()">採点開始</button>
             </form>
         </div>
         <div id="pdf-container">
-            <h2>採点PDF</h2>
             <canvas id="pdf-canvas"></canvas>
         </div>
         <div id="edit-container">
             <h2>採点結果</h2>
             <div id="form-container"></div>
             <button type="button" onclick="generateScoredPDF()">採点結果をPDFにする</button>
-            <div id="result"></div>
         </div>
     </div>
 
@@ -95,8 +77,6 @@
         let pdfDoc = null;
         let answerPdfDoc = null;
         let currentPage = 1;
-        let answers = [];
-        let answerPositions = [];
         let isDrawing = false;
         let startX, startY;
         let rects = [];
@@ -126,8 +106,8 @@
             const canvas = document.getElementById('pdf-canvas');
             const context = canvas.getContext('2d');
 
-            canvas.height = viewport.height;
             canvas.width = viewport.width;
+            canvas.height = viewport.height;
 
             const renderContext = {
                 canvasContext: context,
@@ -135,28 +115,40 @@
             };
             await page.render(renderContext).promise;
 
-            // クリックイベントで矩形を描画
+            // 正確な位置に枠を描くためのイベント
             canvas.addEventListener('mousedown', startDrawing);
             canvas.addEventListener('mousemove', drawRect);
             canvas.addEventListener('mouseup', endDrawing);
+
+            canvas.addEventListener('touchstart', startDrawing, {passive: false});
+            canvas.addEventListener('touchmove', drawRect, {passive: false});
+            canvas.addEventListener('touchend', endDrawing, {passive: false});
         }
 
         function startDrawing(event) {
+            event.preventDefault();
             isDrawing = true;
             const rect = event.target.getBoundingClientRect();
-            startX = event.clientX - rect.left;
-            startY = event.clientY - rect.top;
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+            startX = clientX - rect.left;
+            startY = clientY - rect.top;
         }
 
         function drawRect(event) {
             if (!isDrawing) return;
+
+            event.preventDefault();
             const rect = event.target.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+            const clientX = event.clientX || event.touches[0].clientX;
+            const clientY = event.clientY || event.touches[0].clientY;
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
             const width = x - startX;
             const height = y - startY;
 
             clearRects(); // 以前の矩形をクリア
+
             const newRect = document.createElement('div');
             newRect.classList.add('rect');
             newRect.style.left = startX + 'px';
@@ -175,10 +167,6 @@
         function clearRects() {
             rects.forEach(rect => rect.remove());
             rects = [];
-        }
-
-        function extractTextFromRects() {
-            // 各矩形の座標からテキストを抽出する処理を追加
         }
 
         async function uploadAndExtractAnswers() {
@@ -203,9 +191,11 @@
 
             const page = await answerPdfDoc.getPage(currentPage);
             const textContent = await page.getTextContent();
+
+            // 赤い文字の検出
+            const redTexts = textContent.items.filter(item => item.color && item.color[0] === 1 && item.color[1] === 0 && item.color[2] === 0);
             
-            const redTexts = textContent.items.filter(item => item.color && item.color.r === 1 && item.color.g === 0 && item.color.b === 0);
-            
+            // 答えを問題番号で分ける
             answers = redTexts.map(item => ({
                 text: item.str.trim(),
                 x: item.transform[4],
@@ -231,11 +221,11 @@
         }
 
         async function startScoring() {
-            extractTextFromRects();
+            // 抽出したテキストを基に採点処理を行う関数を追加
         }
 
         function generateScoredPDF() {
-            // 採点結果をPDFに生成するロジックを追加
+            // 採点結果をPDFにする処理を追加
         }
     </script>
 </body>
