@@ -70,7 +70,6 @@
                 <button type="button" onclick="uploadAndRenderPDF()">採点PDF表示</button>
                 <input type="file" id="answer-file" name="answer-file" accept=".pdf">
                 <button type="button" onclick="uploadAndExtractAnswers()">答えを抽出</button>
-                <button type="button" onclick="compareAnswers()">答えを比較</button>
                 <button type="button" onclick="startScoring()">採点開始</button>
             </form>
         </div>
@@ -152,12 +151,7 @@
 
             const page = await answerPdfDoc.getPage(currentPage);
             const textContent = await page.getTextContent();
-
-            // 赤文字の抽出
-            answers = textContent.items
-                .filter(item => item.hasOwnProperty('fontName') && item.fontName.includes('red')) // 赤文字のフォント名をフィルタリング
-                .map(item => item.str);
-
+            answers = textContent.items.map(item => item.str.trim()); // 抽出したテキストを保存
             generateQuestionForm();
         }
 
@@ -181,16 +175,15 @@
             });
         }
 
-        async function compareAnswers() {
+        async function startScoring() {
             if (!pdfDoc || answers.length === 0) return;
 
             const page = await pdfDoc.getPage(currentPage);
             const textContent = await page.getTextContent();
 
-            const questions = textContent.items.map(item => item.str);
+            const questions = textContent.items.map(item => item.str.trim());
             const statuses = Array.from(document.querySelectorAll('#question-form select')).map(select => select.value);
 
-            // 正解/不正解のマーカーを計算する
             const markers = statuses.map((status, index) => ({
                 x: 50, // 仮の値
                 y: 50 + index * 20, // 仮の値
@@ -211,15 +204,10 @@
             });
         }
 
-        async function startScoring() {
-            await compareAnswers();
-        }
-
         async function generateScoredPDF() {
             const { jsPDF } = window.jspdf;
             const pdf = new jsPDF();
 
-            // HTML2Canvasで結果をキャプチャし、PDFに追加
             await html2canvas(document.querySelector('#pdf-container')).then(canvas => {
                 const imgData = canvas.toDataURL('image/png');
                 pdf.addImage(imgData, 'PNG', 10, 10);
