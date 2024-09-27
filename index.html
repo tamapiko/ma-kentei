@@ -3,54 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>テストプリント採点システム</title>
+    <title>選択問題自動採点システム</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <h1>テストプリント採点システム</h1>
+        <h1>選択問題自動採点システム</h1>
 
-        <form id="scoreForm">
-            <label for="name">氏名:</label>
-            <input type="text" id="name" name="name" placeholder="氏名を入力" required>
+        <!-- テスト用紙の向き設定 -->
+        <label for="orientation">テスト用紙の向き:</label>
+        <select id="orientation">
+            <option value="portrait">縦</option>
+            <option value="landscape">横</option>
+        </select>
 
-            <div class="answer-section">
-                <label for="answer1">1. 解答:</label>
-                <input type="text" id="answer1" name="answer1" placeholder="解答を入力" required>
+        <!-- 模範解答のアップロード -->
+        <form id="uploadForm">
+            <label for="keyFile">模範解答ファイルをアップロード (CSV):</label>
+            <input type="file" id="keyFile" name="keyFile" accept=".csv" required>
 
-                <label for="answer2">2. 解答:</label>
-                <input type="text" id="answer2" name="answer2" placeholder="解答を入力" required>
+            <!-- ZIPファイルアップロード -->
+            <label for="zipFile">答案ファイルをアップロード (ZIP):</label>
+            <input type="file" id="zipFile" name="zipFile" accept=".zip" required>
 
-                <label for="answer3">3. 解答:</label>
-                <input type="text" id="answer3" name="answer3" placeholder="解答を入力" required>
-            </div>
-
-            <div class="key-section">
-                <h3>模範解答</h3>
-                <label for="key1">1. 模範解答:</label>
-                <input type="text" id="key1" name="key1" value="HTML" required>
-
-                <label for="key2">2. 模範解答:</label>
-                <input type="text" id="key2" name="key2" value="CSS" required>
-
-                <label for="key3">3. 模範解答:</label>
-                <input type="text" id="key3" name="key3" value="JavaScript" required>
-            </div>
-
-            <div class="points-section">
-                <label for="points">配点:</label>
-                <input type="number" id="points" name="points" placeholder="問題ごとの配点" required>
-            </div>
-
-            <button type="button" onclick="gradeTest()">採点する</button>
+            <button type="button" onclick="uploadFiles()">アップロード</button>
         </form>
 
         <div id="result"></div>
 
+        <!-- 採点結果ダウンロード -->
         <button id="downloadGraded" style="display:none;" onclick="downloadGradedPDF()">採点結果をダウンロード</button>
-        <button id="downloadAnalysis" style="display:none;" onclick="downloadAnalysisPDF()">分析結果をダウンロード</button>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
