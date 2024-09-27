@@ -3,252 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>自動採点システム</title>
-    <style>
-        body {
-            margin: 0;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-        #container {
-            display: flex;
-            flex: 1;
-        }
-        #upload-container {
-            width: 250px;
-            padding: 20px;
-            border-right: 1px solid #ccc;
-            box-sizing: border-box;
-        }
-        #pdf-container {
-            flex: 1;
-            padding: 20px;
-            position: relative;
-            overflow: auto;
-        }
-        #edit-container {
-            width: 300px;
-            padding: 20px;
-            box-sizing: border-box;
-            border-left: 1px solid #ccc;
-        }
-        #pdf-canvas {
-            width: 100%;
-            height: auto;
-            border: 1px solid #ccc;
-            box-sizing: border-box;
-        }
-        .rect {
-            border: 2px solid red;
-            position: absolute;
-            pointer-events: none;
-        }
-    </style>
+    <title>テストプリント採点システム</title>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="container">
-        <div id="upload-container">
-            <h2>アップロード</h2>
-            <form id="upload-form">
-                <input type="file" id="pdf-file" accept=".pdf"><br><br>
-                <input type="file" id="answer-file" accept=".pdf"><br><br>
-                <button type="button" onclick="uploadAndRenderPDF()">採点PDF表示</button>
-                <button type="button" onclick="uploadAndExtractAnswers()">答えを抽出</button>
-                <button type="button" onclick="startScoring()">採点開始</button>
-            </form>
-        </div>
-        <div id="pdf-container">
-            <canvas id="pdf-canvas"></canvas>
-        </div>
-        <div id="edit-container">
-            <h2>採点結果</h2>
-            <div id="form-container"></div>
-            <button type="button" onclick="generateScoredPDF()">採点結果をPDFにする</button>
-        </div>
+    <div class="container">
+        <h1>テストプリント採点システム</h1>
+
+        <form id="scoreForm">
+            <label for="name">氏名:</label>
+            <input type="text" id="name" name="name" placeholder="氏名を入力" required>
+
+            <div class="answer-section">
+                <label for="answer1">1. 解答:</label>
+                <input type="text" id="answer1" name="answer1" placeholder="解答を入力" required>
+
+                <label for="answer2">2. 解答:</label>
+                <input type="text" id="answer2" name="answer2" placeholder="解答を入力" required>
+
+                <label for="answer3">3. 解答:</label>
+                <input type="text" id="answer3" name="answer3" placeholder="解答を入力" required>
+            </div>
+
+            <div class="key-section">
+                <h3>模範解答</h3>
+                <label for="key1">1. 模範解答:</label>
+                <input type="text" id="key1" name="key1" value="HTML" required>
+
+                <label for="key2">2. 模範解答:</label>
+                <input type="text" id="key2" name="key2" value="CSS" required>
+
+                <label for="key3">3. 模範解答:</label>
+                <input type="text" id="key3" name="key3" value="JavaScript" required>
+            </div>
+
+            <div class="points-section">
+                <label for="points">配点:</label>
+                <input type="number" id="points" name="points" placeholder="問題ごとの配点" required>
+            </div>
+
+            <button type="button" onclick="gradeTest()">採点する</button>
+        </form>
+
+        <div id="result"></div>
+
+        <button id="downloadGraded" style="display:none;" onclick="downloadGradedPDF()">採点結果をダウンロード</button>
+        <button id="downloadAnalysis" style="display:none;" onclick="downloadAnalysisPDF()">分析結果をダウンロード</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/0.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.6.0/jspdf.umd.min.js"></script>
-    <script>
-        let pdfDoc = null;
-        let answerPdfDoc = null;
-        let currentPage = 1;
-        let isDrawing = false;
-        let startX, startY;
-        let rects = [];
-        let answers = [];
-
-        async function uploadAndRenderPDF() {
-            const fileInput = document.getElementById('pdf-file');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('採点するPDFファイルを選択してください。');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
-                pdfDoc = await loadingTask.promise;
-                renderPage(currentPage);
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        async function renderPage(pageNum) {
-            if (!pdfDoc) return;
-
-            const page = await pdfDoc.getPage(pageNum);
-            const viewport = page.getViewport({ scale: 1 });
-            const canvas = document.getElementById('pdf-canvas');
-            const context = canvas.getContext('2d');
-
-            canvas.width = viewport.width;
-            canvas.height = viewport.height;
-
-            const renderContext = {
-                canvasContext: context,
-                viewport: viewport
-            };
-            await page.render(renderContext).promise;
-
-            // 正確な位置に枠を描くためのイベント
-            canvas.addEventListener('mousedown', startDrawing);
-            canvas.addEventListener('mousemove', drawRect);
-            canvas.addEventListener('mouseup', endDrawing);
-
-            canvas.addEventListener('touchstart', startDrawing, {passive: false});
-            canvas.addEventListener('touchmove', drawRect, {passive: false});
-            canvas.addEventListener('touchend', endDrawing, {passive: false});
-        }
-
-        function startDrawing(event) {
-            event.preventDefault();
-            isDrawing = true;
-
-            const canvas = event.target;
-            const rect = canvas.getBoundingClientRect();
-            const clientX = event.clientX || event.touches[0].clientX;
-            const clientY = event.clientY || event.touches[0].clientY;
-
-            startX = clientX - rect.left;
-            startY = clientY - rect.top;
-
-            // 新しい枠線を生成
-            const newRect = document.createElement('div');
-            newRect.classList.add('rect');
-            newRect.style.left = startX + 'px';
-            newRect.style.top = startY + 'px';
-            newRect.style.width = '0px';
-            newRect.style.height = '0px';
-            document.getElementById('pdf-container').appendChild(newRect);
-
-            // 現在の矩形を保存しておく
-            rects.push(newRect);
-        }
-
-        function drawRect(event) {
-            if (!isDrawing) return;
-
-            event.preventDefault();
-
-            const rect = event.target.getBoundingClientRect();
-            const clientX = event.clientX || event.touches[0].clientX;
-            const clientY = event.clientY || event.touches[0].clientY;
-
-            const x = clientX - rect.left;
-            const y = clientY - rect.top;
-
-            const width = x - startX;
-            const height = y - startY;
-
-            // 現在描画中の矩形を更新
-            const currentRect = rects[rects.length - 1];
-            currentRect.style.width = Math.abs(width) + 'px';
-            currentRect.style.height = Math.abs(height) + 'px';
-            currentRect.style.left = (width < 0 ? x : startX) + 'px';
-            currentRect.style.top = (height < 0 ? y : startY) + 'px';
-        }
-
-        function endDrawing() {
-            isDrawing = false;
-        }
-
-        async function uploadAndExtractAnswers() {
-            const fileInput = document.getElementById('answer-file');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('答えのPDFファイルを選択してください。');
-                return;
-            }
-
-            const reader = new FileReader();
-            reader.onload = async function(event) {
-                const loadingTask = pdfjsLib.getDocument({data: new Uint8Array(event.target.result)});
-                answerPdfDoc = await loadingTask.promise;
-                extractAnswers();
-            };
-            reader.readAsArrayBuffer(file);
-        }
-
-        async function extractAnswers() {
-            if (!answerPdfDoc) return;
-
-            const page = await answerPdfDoc.getPage(currentPage);
-            const textContent = await page.getTextContent();
-
-            // 赤い文字の検出
-            const redTexts = textContent.items.filter(item => item.color && item.color[0] === 1 && item.color[1] === 0 && item.color[2] === 0);
-            
-            // 答えを問題番号で分ける
-            answers = redTexts.map(item => ({
-                text: item.str.trim(),
-                x: item.transform[4],
-                y: item.transform[5]
-            }));
-
-            displayAnswersForm();
-        }
-
-        function displayAnswersForm() {
-            const formContainer = document.getElementById('form-container');
-            formContainer.innerHTML = '';
-
-            answers.forEach((answer, index) => {
-                const fieldset = document.createElement('fieldset');
-                fieldset.innerHTML = `
-                    <legend>解答 ${index + 1}</legend>
-                    <label for="answer${index}">答え:</label>
-                    <input type="text" id="answer${index}" name="answer${index}" value="${answer.text}">
-                `;
-                formContainer.appendChild(fieldset);
-            });
-        }
-
-        async function startScoring() {
-            if (!pdfDoc || rects.length === 0) {
-                alert('採点するPDFまたは解答欄の枠を指定してください。');
-                return;
-            }
-
-            for (const rect of rects) {
-                const x = parseInt(rect.style.left, 10);
-                const y = parseInt(rect.style.top, 10);
-                const width = parseInt(rect.style.width, 10);
-                const height = parseInt(rect.style.height, 10);
-
-                // 解答欄内のテキストを抽出するコードを追加
-                // テキスト検出と答えの比較処理
-            }
-        }
-
-        function generateScoredPDF() {
-            // 採点結果をPDFにする処理を追加
-        }
-    </script>
+    <script src="script.js"></script>
 </body>
 </html>
